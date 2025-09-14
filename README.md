@@ -3,8 +3,8 @@
 業務でのフォルダ作成作業を効率化する Flask 製のWebアプリです。  
 指定したルールに基づいて大量のフォルダを一括生成し、ZIP形式でダウンロードできます。
 
-![UI](docs/screenshot.png)
-![UI](docs/screenshot1.png)
+![UI](auto_folder_webapp/docs/screenshot.png)
+![UI](auto_folder_webapp/docs/screenshot1.png)
 
 ## 主な機能
 - **連番フォルダ作成**
