@@ -4,6 +4,7 @@
 指定したルールに基づいて大量のフォルダを一括生成し、ZIP形式でダウンロードできます。
 
 ![UI](docs/screenshot.png)
+![UI](docs/screenshot1.png)
 
 ## 主な機能
 - **連番フォルダ作成**
