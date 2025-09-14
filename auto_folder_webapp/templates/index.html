@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>自動フォルダ作成Webアプリ</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", "Noto Sans JP", Arial, sans-serif;
+      margin: 0.5rem;
+      line-height: 1.6;
+      font-size: 0.95rem;
+    }
+    .card {
+      max-width: 1280px;
+      margin: 0 auto;
+      border: 1px solid #ddd;
+      border-radius: 14px;
+      padding: 0.8rem;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    }
+    h1 {
+      font-size: 1.2rem;
+      margin: 0;
+    }
+    fieldset {
+      border: 1px solid #eee;
+      border-radius: 10px;
+      padding: 0.6rem;
+      margin-bottom: 0.6rem;
+    }
+    legend {
+      padding: 0 .5rem;
+      color: #444;
+    }
+    label {
+      display: block;
+      font-size: .8rem;
+      color: #333;
+      margin: .3rem 0 .2rem;
+    }
+    input[type="text"], input[type="number"], textarea, select {
+      width: 100%;
+      padding: .4rem .5rem;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      box-sizing: border-box;
+      font-size: 0.9rem;
+    }
+    textarea {
+      min-height: 70px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.6rem;
+    }
+    .row3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0.6rem;
+    }
+    .hint {
+      color: #666;
+      font-size: .75rem;
+    }
+    button {
+      padding: .5rem 1rem;
+      border: none;
+      border-radius: 999px;
+      background: black;
+      color: white;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    .note {
+      background:#fff8e5;
+      border:1px solid #ffe08a;
+      padding:.5rem .7rem;
+      border-radius:10px;
+      font-size:.8rem;
+    }
+    .tabs {
+      display:flex;
+      gap:.3rem;
+      margin:.5rem 0 0.8rem;
+    }
+    .tabbtn {
+      padding:.4rem .8rem;
+      border:1px solid #ddd;
+      background:#f7f7f7;
+      border-radius:999px;
+      cursor:pointer;
+      font-size: 0.85rem;
+    }
+    .tabbtn.active {
+      background:black;
+      color:#fff;
+      border-color:black;
+    }
+    .hidden {
+      display:none;
+    }
+    .toggle-row {
+      display:flex;
+      align-items:center;
+      gap:.4rem;
+      margin:.4rem 0;
+    }
+    .disabled-area {
+      opacity: .6;
+    }
+    /* Builder */
+    .builder {
+      display:flex;
+      align-items:center;
+      gap:.4rem;
+      flex-wrap:wrap;
+    }
+    .chip {
+      display:flex;
+      align-items:center;
+      gap:.3rem;
+      padding:.35rem .6rem;
+      border:1px solid #ddd;
+      border-radius:999px;
+      background:#fafafa;
+      cursor:grab;
+      user-select:none;
+    }
+    .chip:active {
+      cursor:grabbing;
+    }
+    .chip[data-type="N"]{
+      background:#eef6ff;
+      border-color:#cfe6ff;
+    }
+    .chip .handle {
+      font-size:1rem;
+      opacity:.6;
+    }
+    .ghost {
+      opacity:.4;
+    }
+    .dropzone {
+      min-height: 34px;
+      display:flex;
+      gap:.3rem;
+      flex-wrap:wrap;
+      padding:.3rem;
+      border:1px dashed #ddd;
+      border-radius:10px;
+      background:#fcfcfc;
+    }
+    /* Layout grid for widescreen */
+    .grid2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.6rem;
+    }
+    @media (max-width: 1100px){
+      .grid2 {
+        grid-template-columns: 1fr;
+      }
+    }
+    #previewWrap pre {
+      max-height: 25vh;
+      font-size: 0.85rem;
+    }
+    .header-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.6rem;
+    }
+    .header-content h1 {
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header-content">
+      <h1>自動フォルダ作成 Webアプリ</h1>
+      <form method="post" action="/" id="topForm">
+        <button type="submit">ZIPを生成してダウンロード</button>
+      </form>
+    </div>
+
+    <p class="note">指定したルールで大量のフォルダをまとめて作成し、ZIPでダウンロードします。<br>「連番」タブか「カスタム名」タブのどちらかを選んでください。</p>
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <ul>
+          {% for m in messages %}<li>{{ m }}</li>{% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    <form method="post" action="/" id="mainForm">
+      <input type="hidden" name="mode" id="mode" value="auto">
+      <input type="hidden" name="order" id="order" value="A,N,B">
+
+      <div class="grid2">
+        <fieldset>
+          <legend>トップレベルのフォルダ名</legend>
+          <div class="tabs">
+            <div id="tab-auto" class="tabbtn active" onclick="switchTab('auto')">連番で作成</div>
+            <div id="tab-custom" class="tabbtn" onclick="switchTab('custom')">カスタム名で作成</div>
+          </div>
+          <div id="auto_block">
+            <label>名前ビルダー（テキストA/Bを空にするとそのブロックは非表示。ドラッグで順序変更）</label>
+            <div id="builder" class="dropzone"></div>
+            <div class="row">
+              <div>
+                <label>テキストA</label>
+                <input type="text" name="textA" placeholder="例: R06-">
+              </div>
+              <div>
+                <label>テキストB</label>
+                <input type="text" name="textB" placeholder="例: -A">
+              </div>
+            </div>
+            <div class="row">
+              <div>
+                <label>連番の開始番号</label>
+                <input type="number" name="start" value="1" min="0">
+              </div>
+              <div>
+                <label>連番の桁数（数字スタイル時）</label>
+                <input type="number" name="digits" value="4" min="1" max="10">
+                <div class="hint">※開始番号が3桁以上なら自動で桁数も引き上げます</div>
+              </div>
+            </div>
+            <div class="row">
+              <div>
+                <label>番号の形式</label>
+                <select name="num_style" id="num_style">
+                  <option value="num">数字（1,2,3...）</option>
+                  <option value="alpha">英字（A,B,C...）</option>
+                  <option value="iroha">いろは（イ,ロ,ハ...）</option>
+                </select>
+                <div class="toggle-row">
+                  <input type="checkbox" id="use_paren" name="use_paren">
+                  <label for="use_paren">番号を括弧（ ）で囲む</label>
+                </div>
+              </div>
+              <div>
+                <label>作成数</label>
+                <input type="number" name="count" value="10" min="1" max="10000">
+              </div>
+            </div>
+          </div>
+          <div id="custom_block" class="hidden">
+            <label>カスタム名（1行＝1フォルダ名）</label>
+            <textarea name="custom_names" placeholder="R06-経理
+R06-総務
+R06-営業"></textarea>
+            <div class="hint">※空の場合はエラーになります。</div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>子／孫フォルダ（任意）</legend>
+          <div class="toggle-row">
+            <input type="checkbox" id="child_enabled" name="child_enabled" onchange="toggleArea('child')">
+            <label for="child_enabled">子フォルダを作成する</label>
+          </div>
+          <div id="child_area" class="disabled-area">
+            <label>子フォルダ名（カンマ or 改行区切り）</label>
+            <textarea name="child_names" placeholder="01_書類, 02_証憑, 99_一時" disabled></textarea>
+          </div>
+          <div class="toggle-row" style="margin-top:.6rem">
+            <input type="checkbox" id="grand_enabled" name="grand_enabled" onchange="toggleArea('grand')">
+            <label for="grand_enabled">孫フォルダを作成する</label>
+          </div>
+          <div id="grand_area" class="disabled-area">
+            <label>孫フォルダ名（カンマ or 改行区切り）</label>
+            <textarea name="grand_names" placeholder="A_未処理, B_確認中, C_完了" disabled></textarea>
+          </div>
+          <div class="hint">※子・孫は各トップフォルダの直下に同じ構成で作成されます。</div>
+        </fieldset>
+      </div>
+
+      <div>
+        <fieldset>
+          <legend>プレビュー</legend>
+          <div id="previewWrap" class="preview">
+            <pre id="preview" style="background:#fafafa;border:1px solid #eee;border-radius:10px;padding:8px;overflow:auto;max-height:25vh;white-space:pre;"></pre>
+            <div class="hint" id="previewHint"></div>
+          </div>
+        </fieldset>
+      </div>
+    </form>
+  </div>
+
+<script>
+function switchTab(which){
+  const autoBtn = document.getElementById('tab-auto');
+  const customBtn = document.getElementById('tab-custom');
+  const autoBlock = document.getElementById('auto_block');
+  const customBlock = document.getElementById('custom_block');
+  const mode = document.getElementById('mode');
+
+  if(which === 'auto'){
+    autoBtn.classList.add('active'); customBtn.classList.remove('active');
+    autoBlock.classList.remove('hidden'); customBlock.classList.add('hidden');
+    mode.value = 'auto';
+  }else{
+    customBtn.classList.add('active'); autoBtn.classList.remove('active');
+    customBlock.classList.remove('hidden'); customBlock.classList.add('hidden');
+    mode.value = 'custom';
+  }
+  computePreview();
+}
+
+function toggleArea(kind){
+  const enabled = document.getElementById(kind + '_enabled').checked;
+  const area = document.getElementById(kind + '_area');
+  const ta = area.querySelector('textarea');
+  ta.disabled = !enabled;
+  area.classList.toggle('disabled-area', !enabled);
+  computePreview();
+}
+
+/* --- Builder: dynamic chips (show only filled fields) + DnD --- */
+function renderChips(){
+  const builder = document.getElementById('builder');
+  const textA = document.querySelector('[name=textA]').value || '';
+  const textB = document.querySelector('[name=textB]').value || '';
+  let order = (document.getElementById('order').value || 'A,N,B').split(',').filter(Boolean);
+
+  // Ensure N present
+  if(!order.includes('N')) order.unshift('N');
+
+  // Filter out empty A/B
+  order = order.filter(tok => (tok==='A' ? !!textA : (tok==='B' ? !!textB : true)));
+
+  // If user typed into empty field, append corresponding token at end
+  if(textA && !order.includes('A')) order.push('A');
+  if(textB && !order.includes('B')) order.push('B');
+
+  // Render
+  builder.innerHTML = '';
+  const mapLabel = {A:'テキストA', N:'番号', B:'テキストB'};
+  order.forEach(tok => {
+    const div = document.createElement('div');
+    div.className = 'chip';
+    div.draggable = true;
+    div.dataset.type = tok;
+    div.innerHTML = '<span class="handle">⠿</span><b>' + mapLabel[tok] + '</b>';
+    builder.appendChild(div);
+  });
+
+  document.getElementById('order').value = order.join(',');
+  setupDnD();
+}
+
+function serializeOrder(){
+  const chips = Array.from(document.querySelectorAll('#builder .chip'));
+  const order = chips.map(c => c.dataset.type).join(',');
+  document.getElementById('order').value = order;
+  return order;
+}
+function setupDnD(){
+  const container = document.getElementById('builder');
+  let dragEl = null;
+  container.querySelectorAll('.chip').forEach(ch => {
+    ch.addEventListener('dragstart', (e)=>{
+      dragEl = ch;
+      ch.classList.add('ghost');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    ch.addEventListener('dragend', ()=>{
+      ch.classList.remove('ghost');
+      dragEl = null;
+      serializeOrder();
+      computePreview();
+    });
+  });
+  container.addEventListener('dragover', (e)=>{
+    e.preventDefault();
+    const after = getDragAfterElement(container, e.clientX);
+    if(dragEl){
+      if(after == null){
+        container.appendChild(dragEl);
+      } else {
+        container.insertBefore(dragEl, after);
+      }
+    }
+  });
+  function getDragAfterElement(container, x){
+    const els = [...container.querySelectorAll('.chip:not(.ghost)')];
+    return els.reduce((closest, child)=>{
+      const rect = child.getBoundingClientRect();
+      const offset = x - rect.left - rect.width/2;
+      if(offset < 0 && offset > closest.offset){
+        return { offset, element: child };
+      } else {
+        return closest;
+      }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+  }
+}
+
+/* --- Live Preview & helpers --- */
+const mainForm = document.getElementById('mainForm');
+const topForm = document.getElementById('topForm');
+const preview = document.getElementById('preview');
+const previewHint = document.getElementById('previewHint');
+
+function parseList(text){
+  if(!text) return [];
+  return text.replace(/,/g, "\n").split(/\n/).map(s=>s.trim()).filter(Boolean);
+}
+function zfill(num, digits){
+  const s = String(num);
+  return s.length >= digits ? s : "0".repeat(digits - s.length) + s;
+}
+function alphaCol(n){
+  let n0 = Math.max(1, n);
+  let s = "";
+  while(n0 > 0){
+    const rem = (n0 - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    n0 = Math.floor((n0 - 1) / 26);
+  }
+  return s;
+}
+const IROHA = ["イ","ロ","ハ","ニ","ホ","ヘ","ト","チ","リ","ヌ","ル","ヲ","ワ","カ","ヨ","タ","レ","ソ","ツ","ネ","ナ","ラ","ム","ウ","ヰ","ノ","オ","ク","ヤ","マ","ケ","フ","コ","エ","テ","ア","サ","キ","ユ","メ","ミ","シ","ヱ","ヒ","モ","セ","ス"];
+function irohaN(n){
+  const idx = (n - 1) % IROHA.length;
+  return IROHA[idx];
+}
+function formatToken(nRaw, style, digits, useParen){
+  let token;
+  if(style === 'num'){
+    token = zfill(nRaw, digits);
+  } else if(style === 'alpha'){
+    token = alphaCol(nRaw);
+  } else if(style === 'iroha'){
+    token = irohaN(nRaw);
+  } else {
+    token = String(nRaw);
+  }
+  if(useParen){ token = '(' + token + ')'; }
+  return token;
+}
+function makeTopNames(){
+  const mode = document.getElementById('mode').value;
+  if(mode === 'custom'){
+    return parseList(document.querySelector('[name=custom_names]').value);
+  } else {
+    const order = serializeOrder().split(',').filter(Boolean);
+    const textA = document.querySelector('[name=textA]').value || '';
+    const textB = document.querySelector('[name=textB]').value || '';
+    const start = parseInt(document.querySelector('[name=start]').value || '1', 10);
+    const digitsEl = document.querySelector('[name=digits]');
+    const digits = parseInt(digitsEl.value || '1', 10);
+    const count = Math.max(0, parseInt(document.querySelector('[name=count]').value || '0', 10));
+    const style = document.getElementById('num_style').value;
+    const useParen = document.getElementById('use_paren').checked;
+
+    if(style === 'num'){
+      const need = Math.max(3, String(start).length);
+      if(digits < need){ digitsEl.value = need; }
+    }
+
+    const tops = [];
+    for(let i=0;i<count;i++){
+      const token = formatToken(start + i, style, parseInt(digitsEl.value,10), useParen);
+      const parts = order.map(tok => tok==='A'? textA : (tok==='B'? textB : token));
+      tops.push(parts.join(''));
+    }
+    return tops;
+  }
+}
+function computePreview(){
+  renderChips();
+  const tops = makeTopNames();
+  const childOn = document.getElementById('child_enabled').checked;
+  const grandOn = document.getElementById('grand_enabled').checked;
+  const children = childOn ? parseList(document.querySelector('[name=child_names]').value) : [];
+  const grands = grandOn ? parseList(document.querySelector('[name=grand_names]').value) : [];
+
+  const MAX_TOP = 5;
+  const lines = [];
+  const showCount = Math.min(MAX_TOP, tops.length || 0);
+  for(let ti=0; ti<showCount; ti++){
+    const top = tops[ti];
+    lines.push(`📁 ${top}/`);
+    if(children.length){
+      for(const c of children){
+        lines.push(`  📁 ${c}/`);
+        if(grands.length){
+          for(const g of grands){
+            lines.push(`    📁 ${g}/`);
+          }
+        }
+      }
+    } else if(grands.length){
+      for(const g of grands){
+        lines.push(`  📁 ${g}/`);
+      }
+    }
+  }
+  if((tops.length || 0) > MAX_TOP){
+    lines.push(`… ほか ${tops.length - MAX_TOP} フォルダ`);
+  }
+  preview.textContent = lines.length ? lines.join("\n") : "（ここにフォルダ構成のプレビューが表示されます）";
+  if(tops.length){
+    previewHint.textContent = `プレビューは先頭 ${showCount} 件まで表示（合計 ${tops.length} フォルダ）`;
+  }else{
+    previewHint.textContent = "";
+  }
+}
+function wirePreview(){
+  mainForm.addEventListener('input', computePreview);
+  topForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    mainForm.submit();
+  });
+  document.getElementById('order').value = 'A,N,B';
+  renderChips();
+  computePreview();
+}
+document.addEventListener('DOMContentLoaded', wirePreview);
+</script>
+</body>
+</html>
